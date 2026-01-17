@@ -1,7 +1,11 @@
 package nl.gerimedica.assignment.service;
 
+import java.time.LocalDate;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
+import nl.gerimedica.assignment.exception.PatientNotFoundException;
 import nl.gerimedica.assignment.enums.Reason;
+import nl.gerimedica.assignment.service.dto.AppointmentDTO;
 import nl.gerimedica.assignment.util.HospitalUtils;
 import nl.gerimedica.assignment.repository.AppointmentRepository;
 import nl.gerimedica.assignment.repository.PatientRepository;
@@ -14,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static nl.gerimedica.assignment.enums.Reason.getReasonFromString;
+import static nl.gerimedica.assignment.service.dto.AppointmentDTO.toAppointmentDTO;
 
 @Service
 @Slf4j
@@ -32,12 +37,12 @@ public class HospitalService {
     this.hospitalUtils = hospitalUtils;
   }
 
-  public List<Appointment> bulkCreateAppointments(
+  public List<AppointmentDTO> bulkCreateAppointments(
       String patientName,
       String ssn,
       List<String> reasons,
       List<String> dates
-                                                 ) {
+                                                    ) {
     Patient patient = findPatientBySSN(ssn);
     if (patient == null) {
       log.info("Creating new patient with SSN: {}", ssn);
@@ -51,12 +56,14 @@ public class HospitalService {
     int loopSize = Math.min(reasons.size(), dates.size());
     for (int i = 0; i < loopSize; i++) {
       Reason reason = getReasonFromString(reasons.get(i));
-      String date = dates.get(i);
+      LocalDate date = LocalDate.parse(dates.get(i));
       Appointment appt = new Appointment(reason, date, patient);
       createdAppointments.add(appt);
     }
 
-    appointmentRepo.saveAll(createdAppointments);
+    List<Appointment> appointments = appointmentRepo.saveAll(createdAppointments);
+
+    var appointmentDTOs = appointments.stream().map(AppointmentDTO::toAppointmentDTO).toList();
 
     for (Appointment appt : createdAppointments) {
       log.info("Created appointment for reason: {} [Date: {}] [Patient SSN: {}]", appt.reason, appt.date,
@@ -65,7 +72,7 @@ public class HospitalService {
 
     HospitalUtils.recordUsage("Bulk create appointments");
 
-    return createdAppointments;
+    return appointmentDTOs;
   }
 
   public Patient findPatientBySSN(String ssn) {
@@ -77,41 +84,38 @@ public class HospitalService {
     patientRepo.save(patient);
   }
 
-  public List<Appointment> getAppointmentsByReason(Reason reasonKeyword) {
-    // fix
-    List<Appointment> matchedAppointments = appointmentRepo.findByReason(reasonKeyword.name());
+  public List<AppointmentDTO> getAppointmentsByReason(Reason reasonKeyword) {
+    // In case of  very high records can result maximum heap usage, and this cause application slowness maybe even crush
+    List<Appointment> matchedAppointments = appointmentRepo.findByReason(reasonKeyword);
 
     hospitalUtils.recordUsage("Get appointments by reason");
 
-    return matchedAppointments;
+    var appointmentDTOs = matchedAppointments.stream().map(AppointmentDTO::toAppointmentDTO).toList();
+    return appointmentDTOs;
   }
 
   public void deleteAppointmentsBySSN(String ssn) {
     Patient patient = findPatientBySSN(ssn);
-    if (patient == null) {
-      return;
+    if (Objects.isNull(patient)) {
+      throw new PatientNotFoundException(ssn);
     }
     List<Appointment> appointments = patient.appointments;
     appointmentRepo.deleteAll(appointments);
   }
 
-  public Appointment findLatestAppointmentBySSN(String ssn) {
+  public AppointmentDTO findLatestAppointmentBySSN(String ssn) {
     Patient patient = findPatientBySSN(ssn);
-    if (patient == null || patient.appointments == null || patient.appointments.isEmpty()) {
-      return null;
+    if (Objects.isNull(patient)) {
+      throw new PatientNotFoundException(ssn);
     }
 
-    Appointment latest = null;
-    for (Appointment appt : patient.appointments) {
-      if (latest == null) {
-        latest = appt;
-      } else {
-        if (appt.date.compareTo(latest.date) > 0) {
-          latest = appt;
-        }
-      }
+    // TODO we need eaxct appointment date to get best result.
+    // Getting all patient appointments is unnecessary, may due performance problems.This type queries creates N+1 query issue
+    Appointment appointment = appointmentRepo.findBySsnOrderByDateDesc(ssn);
+    if (Objects.isNull(appointment)) {
+      throw new PatientNotFoundException(ssn);
     }
 
-    return latest;
+    return toAppointmentDTO(appointment);
   }
 }

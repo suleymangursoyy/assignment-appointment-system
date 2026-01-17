@@ -41,3 +41,10 @@ Below are the primary entities you’ll find in this codebase:
 3. **Propose and/or implement improvements**: Refactor, rewrite, or reorganize parts of the code to showcase your approach.
 
 ---
+
+## Changes
+
+1. Analyzed the codebase and identify potential issues.
+2. Implemented improvements.
+3. Tested the codebase to ensure it works as expected.
+4. Documented the changes in the `README.md` file.

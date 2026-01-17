@@ -1,10 +1,9 @@
 package nl.gerimedica.assignment.repository.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 
+import java.time.LocalDate;
 import java.util.Objects;
 import nl.gerimedica.assignment.enums.Reason;
 
@@ -15,12 +14,11 @@ public class Appointment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
 
-    @NotBlank(message = "Appointment reason is required")
+    @NotNull(message = "Appointment reason is required")
     public Reason reason;
 
-    @NotBlank(message = "Appointment date is required")
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "Date must be in ISO format (YYYY-MM-DD)")
-    public String date;
+    @NotNull(message = "Appointment date is required")
+    public LocalDate date;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "patient_id")
@@ -30,7 +28,7 @@ public class Appointment {
     public Appointment() {
     }
 
-    public Appointment(Reason reason, String date, Patient patient) {
+    public Appointment(Reason reason, LocalDate date, Patient patient) {
         this.reason = reason;
         this.date = date;
         this.patient = patient;
